@@ -1,101 +1,117 @@
-import Image from "next/image";
+"use client"
+import React, { useState } from "react";
+import axios from "axios";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import ReadingInterface from "@/components/layout/ReadingInterface";
+import InfoCard from "@/components/layout/InfoCard";
+import { FFmpeg } from "@ffmpeg/ffmpeg";
+import {fetchFile} from "@ffmpeg/util";
 
-export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.js
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+const ffmpeg = new FFmpeg({ log: true });
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+function App() {
+    const [file, setFile] = useState(null);
+    const [inputText, setInputText] = useState("");
+    const [analysis, setAnalysis] = useState("");
+    const [readingSpeed, setReadingSpeed] = useState("");
+    const [status, setStatus] = useState("");
+    const [cost, setCost] = useState([{ assemblyAI: 0, openAI: 0 }]);
+    const [transcription, setTranscription] = useState("");
+    const [feedback, setFeedback] = useState("");
+    const [correctedTranscription, setCorrectedTranscription] = useState("");
+    const [accuracy, setAccuracy] = useState("");
+
+
+    const convertToMp3 = async (inputFile) => {
+        if (!ffmpeg.loaded) {
+            toast.info("Loading FFmpeg...");
+            await ffmpeg.load();
+        }
+
+        toast.info("Converting file to MP3 format...");
+        ffmpeg.writeFile(inputFile.name, await fetchFile(inputFile));
+
+        await ffmpeg.exec(["-i", inputFile.name, "output.mp3"]);
+
+        const data = await ffmpeg.readFile("output.mp3");
+        const mp3Blob = new Blob([data.buffer], { type: "audio/mp3" });
+
+        return new File([mp3Blob], "converted.mp3", { type: "audio/mp3" });
+    };
+
+
+    const handleUpload = async () => {
+
+
+        let fileToUpload = file;
+
+        // If the file is OGG, convert it to MP3
+        if (file && file.type !== "audio/mp3") {
+            fileToUpload = await convertToMp3(file);
+            setFile(fileToUpload); // Update the file in state
+        }
+
+
+        const formData = new FormData();
+        formData.append("file", fileToUpload);
+        formData.append("text", inputText);
+
+        try {
+            setStatus("processing");
+            toast.info("The process has been started. Please wait...");
+            //Bu kısım complex yapılarda api.js gibi bir dosya içine taşınarak merkezi bir sistem sağlanabilir
+            const response = await axios.post("http://localhost:8000/api/analyze", formData, {
+                headers: { "Content-Type": "multipart/form-data" },
+            });
+            setAnalysis(response.data.analysis);
+            setReadingSpeed(response.data.reading_speed);
+            setCost(response.data.cost);
+            setTranscription(response.data.transcription);
+            setFeedback(response.data.feedback);
+            setCorrectedTranscription(response.data.corrected_transcription);
+            setAccuracy(response.data.accuracy);
+
+            setStatus("completed");
+            toast.success("The process has been completed successfully!");
+        } catch (error) {
+            setStatus("failed");
+            const errorMessage = error.response?.data?.error || "An unknown error occurred.";
+            toast.error(errorMessage);
+        }
+    };
+
+    return (
+        <div className="bg-gray-100 min-h-screen p-6">
+            <main className="max-w-7xl mx-auto px-4 py-8">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div className="md:col-span-2">
+                        <ReadingInterface
+                            file={file}
+                            setFile={setFile}
+                            inputText={inputText}
+                            setInputText={setInputText}
+                            handleUpload={handleUpload}
+                            transcription={transcription}
+                            correctedTranscription={correctedTranscription}
+                            feedback={feedback}
+                            status={status}
+                        />
+                    </div>
+                    <div>
+                        <InfoCard
+                            status={status}
+                            analysis={analysis}
+                            readingSpeed={readingSpeed}
+                            cost={cost}
+                            accuracy={accuracy}
+                        />
+                    </div>
+                </div>
+            </main>
+            <ToastContainer position="bottom-right" autoClose={5000} />
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
+    );
 }
+
+export default App;
