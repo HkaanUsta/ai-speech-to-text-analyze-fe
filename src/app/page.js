@@ -91,6 +91,7 @@ function App() {
             toast.info("The process has been started. Please wait...");
             const response = await axios.post("https://ai-speech-to-te.brossoft.net/api/analyze", formData, {
                 headers: { "Content-Type": "multipart/form-data" },
+                mode: 'no-cors'
             });
 
             setAnalysis(response.data.analysis);
