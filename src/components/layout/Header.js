@@ -10,9 +10,8 @@ function Header() {
           <h1 className="text-2xl font-bold">ReadingPal</h1>
         </div>
         <nav className="hidden md:flex space-x-6">
-          <a href="#" className="hover:text-blue-200 transition-colors">Dashboard</a>
-          <a href="#" className="hover:text-blue-200 transition-colors">Progress</a>
-          <a href="#" className="hover:text-blue-200 transition-colors">Library</a>
+          <a href="https://github.com/HkaanUsta/ai-speech-to-text-analyze-fe" target="_blank" className="hover:text-blue-200 transition-colors">Frontend</a>
+          <a href="https://github.com/HkaanUsta/ai-speech-to-text-analyze-be" target="_blank" className="hover:text-blue-200 transition-colors">Backend</a>
         </nav>
       </div>
     </header>
