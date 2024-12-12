@@ -89,7 +89,7 @@ function App() {
         try {
             setStatus("processing");
             toast.info("The process has been started. Please wait...");
-            const response = await axios.post("http://localhost:8000/api/analyze", formData, {
+            const response = await axios.post("http://ai-speech-to-te.brossoft.net/api/analyze", formData, {
                 headers: { "Content-Type": "multipart/form-data" },
             });
 
