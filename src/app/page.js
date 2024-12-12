@@ -1,16 +1,21 @@
 "use client"
-import React, { useState } from "react";
-import axios from "axios";
+import React, { useState, useEffect } from "react";
+import dynamic from 'next/dynamic';
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import ReadingInterface from "@/components/layout/ReadingInterface";
-import InfoCard from "@/components/layout/InfoCard";
-import { FFmpeg } from "@ffmpeg/ffmpeg";
-import {fetchFile} from "@ffmpeg/util";
 
-const ffmpeg = new FFmpeg({ log: true });
+// Dynamically import client-side only components
+const ReadingInterface = dynamic(() => import("@/components/layout/ReadingInterface"), { ssr: false });
+const InfoCard = dynamic(() => import("@/components/layout/InfoCard"), { ssr: false });
+
+// Dynamically import FFmpeg and axios to prevent server-side rendering issues
+const importFFmpeg = () => import("@ffmpeg/ffmpeg").then(mod => mod.FFmpeg);
+const importFFmpegUtil = () => import("@ffmpeg/util");
+const importAxios = () => import("axios").then(mod => mod.default);
 
 function App() {
+    const [ffmpeg, setFFmpeg] = useState(null);
+    const [fetchFileFunc, setFetchFileFunc] = useState(null);
     const [file, setFile] = useState(null);
     const [inputText, setInputText] = useState("");
     const [analysis, setAnalysis] = useState("");
@@ -22,15 +27,42 @@ function App() {
     const [correctedTranscription, setCorrectedTranscription] = useState("");
     const [accuracy, setAccuracy] = useState("");
 
+    useEffect(() => {
+        const loadFFmpegModules = async () => {
+            try {
+                const FFmpegModule = await importFFmpeg();
+                const ffmpegUtil = await importFFmpegUtil();
+
+                const ffmpegInstance = new FFmpegModule({ log: true });
+                setFFmpeg(ffmpegInstance);
+                setFetchFileFunc(() => ffmpegUtil.fetchFile);
+            } catch (error) {
+                console.error("Error loading FFmpeg modules:", error);
+                toast.error("Failed to load FFmpeg modules");
+            }
+        };
+
+        loadFFmpegModules();
+    }, []);
 
     const convertToMp3 = async (inputFile) => {
+        if (!ffmpeg) {
+            toast.error("FFmpeg not loaded");
+            return null;
+        }
+
+        if (!fetchFileFunc) {
+            toast.error("fetchFile function not available");
+            return null;
+        }
+
         if (!ffmpeg.loaded) {
             toast.info("Loading FFmpeg...");
             await ffmpeg.load();
         }
 
         toast.info("Converting file to MP3 format...");
-        ffmpeg.writeFile(inputFile.name, await fetchFile(inputFile));
+        ffmpeg.writeFile(inputFile.name, await fetchFileFunc(inputFile));
 
         await ffmpeg.exec(["-i", inputFile.name, "output.mp3"]);
 
@@ -40,18 +72,15 @@ function App() {
         return new File([mp3Blob], "converted.mp3", { type: "audio/mp3" });
     };
 
-
     const handleUpload = async () => {
-
+        const axios = await importAxios();
 
         let fileToUpload = file;
 
-        // If the file is OGG, convert it to MP3
         if (file && file.type !== "audio/mp3") {
             fileToUpload = await convertToMp3(file);
-            setFile(fileToUpload); // Update the file in state
+            setFile(fileToUpload);
         }
-
 
         const formData = new FormData();
         formData.append("file", fileToUpload);
@@ -60,10 +89,10 @@ function App() {
         try {
             setStatus("processing");
             toast.info("The process has been started. Please wait...");
-            //Bu kısım complex yapılarda api.js gibi bir dosya içine taşınarak merkezi bir sistem sağlanabilir
             const response = await axios.post("http://localhost:8000/api/analyze", formData, {
                 headers: { "Content-Type": "multipart/form-data" },
             });
+
             setAnalysis(response.data.analysis);
             setReadingSpeed(response.data.reading_speed);
             setCost(response.data.cost);
